@@ -13,7 +13,21 @@
   <property name="windowTitle">
    <string>MainWindow</string>
   </property>
-  <widget class="QWidget" name="centralwidget"/>
+  <widget class="QWidget" name="centralwidget">
+   <widget class="QLabel" name="estado">
+    <property name="geometry">
+     <rect>
+      <x>0</x>
+      <y>0</y>
+      <width>801</width>
+      <height>41</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>TextLabel</string>
+    </property>
+   </widget>
+  </widget>
   <widget class="QMenuBar" name="menubar">
    <property name="geometry">
     <rect>
@@ -23,8 +37,44 @@
      <height>25</height>
     </rect>
    </property>
+   <widget class="QMenu" name="menuMenu">
+    <property name="title">
+     <string>Menu</string>
+    </property>
+    <widget class="QMenu" name="menuComunicacion">
+     <property name="title">
+      <string>Comunicacion</string>
+     </property>
+     <addaction name="actionEscaneo_de_puertos"/>
+     <addaction name="actionConectar"/>
+     <addaction name="actionDesconectar"/>
+    </widget>
+    <addaction name="menuComunicacion"/>
+    <addaction name="actionSalir"/>
+   </widget>
+   <addaction name="menuMenu"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
+  <action name="actionSalir">
+   <property name="text">
+    <string>Salir</string>
+   </property>
+  </action>
+  <action name="actionEscaneo_de_puertos">
+   <property name="text">
+    <string>Escaneo de puertos</string>
+   </property>
+  </action>
+  <action name="actionConectar">
+   <property name="text">
+    <string>Conectar</string>
+   </property>
+  </action>
+  <action name="actionDesconectar">
+   <property name="text">
+    <string>Desconectar</string>
+   </property>
+  </action>
  </widget>
  <resources/>
  <connections/>
