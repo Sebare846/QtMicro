@@ -8,6 +8,7 @@
 #include <QLabel>
 #include "settingsdialog.h"
 
+
 QT_BEGIN_NAMESPACE
 namespace Ui {
 class MainWindow;
@@ -22,24 +23,31 @@ public:
     MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
 
-    void openSerialPort();
+    void openSerialPort(SettingsDialog *mySettings, QSerialPort *mySerial, uint8_t port);
 
-    void closeSerialPort();
+    void closeSerialPort(QSerialPort *mySerial, uint8_t port);
 
     void myTimerOnTime();
 
-    void dataRecived();
+    void dataRecived(QSerialPort *mySerial, uint8_t port);
 
-    void decodeData();
+    void decodeData(uint8_t port);
 
-    void sendData();
+    void sendData(QSerialPort *mySerial);
+
+private slots:
+    void on_pushButtonSend_clicked();
+
+    void on_messageBox_currentIndexChanged(int index);
+
+    void on_pushButtonSend_2_clicked();
 
 private:
     Ui::MainWindow *ui;
 
-    QSerialPort *mySerial;
+    QSerialPort *mySerialUSB, *mySerialUSART;
     QTimer *myTimer;
-    SettingsDialog *mySettings;
+    SettingsDialog *mySettingsUSB, *mySettingsUSART;
 
     typedef enum{
         START,
@@ -57,15 +65,17 @@ private:
         ACK = 0x0D,
         ALIVE=0xF0,
         FIRMWARE = 0xF1,
-        GET_IR = 0xA0,
-        SET_POWER = 0xA1,
-        SET_SERVO = 0xA2,
-        GET_DISTANCE = 0xA3,
-        GET_SPEED = 0xA4,
         OTHERS
     }_eID;
 
     _eID estadoComandos;
+
+    typedef enum{
+        USB = 0,
+        USART = 1
+    }_ePort;
+
+    _ePort comPorts;
 
     typedef struct{
         uint8_t timeOut;

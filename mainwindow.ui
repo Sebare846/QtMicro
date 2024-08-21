@@ -6,25 +6,117 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>800</width>
-    <height>600</height>
+    <width>933</width>
+    <height>622</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>MainWindow</string>
   </property>
   <widget class="QWidget" name="centralwidget">
-   <widget class="QLabel" name="estado">
+   <widget class="QLabel" name="estadoUSB">
     <property name="geometry">
      <rect>
       <x>0</x>
       <y>0</y>
-      <width>801</width>
-      <height>41</height>
+      <width>400</width>
+      <height>40</height>
      </rect>
     </property>
     <property name="text">
      <string>TextLabel</string>
+    </property>
+   </widget>
+   <widget class="QTextBrowser" name="textUSB">
+    <property name="geometry">
+     <rect>
+      <x>0</x>
+      <y>40</y>
+      <width>400</width>
+      <height>150</height>
+     </rect>
+    </property>
+   </widget>
+   <widget class="QTextBrowser" name="textUSART">
+    <property name="geometry">
+     <rect>
+      <x>0</x>
+      <y>230</y>
+      <width>400</width>
+      <height>150</height>
+     </rect>
+    </property>
+   </widget>
+   <widget class="QLabel" name="estadoUSART">
+    <property name="geometry">
+     <rect>
+      <x>0</x>
+      <y>190</y>
+      <width>400</width>
+      <height>40</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>TextLabel</string>
+    </property>
+   </widget>
+   <widget class="QTextBrowser" name="textWIFI">
+    <property name="geometry">
+     <rect>
+      <x>0</x>
+      <y>420</y>
+      <width>400</width>
+      <height>150</height>
+     </rect>
+    </property>
+   </widget>
+   <widget class="QLabel" name="estadoWIFI">
+    <property name="geometry">
+     <rect>
+      <x>0</x>
+      <y>380</y>
+      <width>400</width>
+      <height>40</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>TextLabel</string>
+    </property>
+   </widget>
+   <widget class="QComboBox" name="messageBox">
+    <property name="geometry">
+     <rect>
+      <x>450</x>
+      <y>0</y>
+      <width>200</width>
+      <height>40</height>
+     </rect>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="pushButtonSend">
+    <property name="geometry">
+     <rect>
+      <x>650</x>
+      <y>0</y>
+      <width>100</width>
+      <height>40</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>SEND USB</string>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="pushButtonSend_2">
+    <property name="geometry">
+     <rect>
+      <x>750</x>
+      <y>0</y>
+      <width>100</width>
+      <height>40</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>SEND USART</string>
     </property>
    </widget>
   </widget>
@@ -33,7 +125,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>800</width>
+     <width>933</width>
      <height>25</height>
     </rect>
    </property>
@@ -45,9 +137,33 @@
      <property name="title">
       <string>Comunicacion</string>
      </property>
-     <addaction name="actionEscaneo_de_puertos"/>
-     <addaction name="actionConectar"/>
-     <addaction name="actionDesconectar"/>
+     <widget class="QMenu" name="menuWiFi">
+      <property name="title">
+       <string>WiFi</string>
+      </property>
+      <addaction name="actionConfiguracion"/>
+      <addaction name="actionConectar_WiFi"/>
+      <addaction name="actionDesconectar_WiFi"/>
+     </widget>
+     <widget class="QMenu" name="menuUSB">
+      <property name="title">
+       <string>USB</string>
+      </property>
+      <addaction name="actionConfiguracion_2"/>
+      <addaction name="actionConectar_USB"/>
+      <addaction name="actionDesconectar_USB"/>
+     </widget>
+     <widget class="QMenu" name="menuUSART">
+      <property name="title">
+       <string>USART</string>
+      </property>
+      <addaction name="actionConfiguracion_3"/>
+      <addaction name="actionConectar_USART"/>
+      <addaction name="actionDesconectar_USART"/>
+     </widget>
+     <addaction name="menuWiFi"/>
+     <addaction name="menuUSB"/>
+     <addaction name="menuUSART"/>
     </widget>
     <addaction name="menuComunicacion"/>
     <addaction name="actionSalir"/>
@@ -73,6 +189,51 @@
   <action name="actionDesconectar">
    <property name="text">
     <string>Desconectar</string>
+   </property>
+  </action>
+  <action name="actionConfiguracion">
+   <property name="text">
+    <string>Configuracion</string>
+   </property>
+  </action>
+  <action name="actionConectar_WiFi">
+   <property name="text">
+    <string>Conectar WiFi</string>
+   </property>
+  </action>
+  <action name="actionDesconectar_WiFi">
+   <property name="text">
+    <string>Desconectar WiFi</string>
+   </property>
+  </action>
+  <action name="actionConfiguracion_2">
+   <property name="text">
+    <string>Configuracion </string>
+   </property>
+  </action>
+  <action name="actionConectar_USB">
+   <property name="text">
+    <string>Conectar USB</string>
+   </property>
+  </action>
+  <action name="actionDesconectar_USB">
+   <property name="text">
+    <string>Desconectar USB</string>
+   </property>
+  </action>
+  <action name="actionConfiguracion_3">
+   <property name="text">
+    <string>Configuracion</string>
+   </property>
+  </action>
+  <action name="actionConectar_USART">
+   <property name="text">
+    <string>Conectar USART</string>
+   </property>
+  </action>
+  <action name="actionDesconectar_USART">
+   <property name="text">
+    <string>Desconectar USART</string>
    </property>
   </action>
  </widget>

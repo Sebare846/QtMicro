@@ -72,7 +72,7 @@ SettingsDialog::SettingsDialog(QWidget *parent) :
 
     connect(ui->applyButton, &QPushButton::clicked,
             this, &SettingsDialog::apply);
-    connect(ui->serialPortInfoListBox, static_cast<void (QComboBox::*)(int)>(&QComboBox::currentIndexChanged),
+    connect(ui->serialPortInfoListBox, static_cast<void (QComboBox::*)(int)>(&QComboBox::currentIndexChanged), //Este
             this, &SettingsDialog::showPortInfo);
     connect(ui->baudRateBox,  static_cast<void (QComboBox::*)(int)>(&QComboBox::currentIndexChanged),
             this, &SettingsDialog::checkCustomBaudRatePolicy);
@@ -165,7 +165,7 @@ void SettingsDialog::fillPortsParameters()
     ui->baudRateBox->setCurrentIndex(3);
 }
 
-void SettingsDialog::fillPortsInfo()
+void SettingsDialog::fillPortsInfo() ///Este
 {
     ui->serialPortInfoListBox->clear();
     QString description;
@@ -194,7 +194,7 @@ void SettingsDialog::fillPortsInfo()
 
 void SettingsDialog::updateSettings()
 {
-    currentSettings.name = ui->serialPortInfoListBox->currentText();
+    currentSettings.name = ui->serialPortInfoListBox->currentText(); ///Este
 
     if (ui->baudRateBox->currentIndex() == 4) {
         currentSettings.baudRate = ui->baudRateBox->currentText().toInt();

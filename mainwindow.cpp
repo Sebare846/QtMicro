@@ -10,19 +10,46 @@ MainWindow::MainWindow(QWidget *parent)
 {
     ui->setupUi(this);
     myTimer = new QTimer(this);
-    mySerial = new QSerialPort(this);
-    mySettings = new SettingsDialog();
+    mySerialUSART = new QSerialPort(this);
+    mySerialUSB = new QSerialPort(this);
+    mySettingsUSB = new SettingsDialog();
+    mySettingsUSART = new SettingsDialog();
 
     estadoProtocolo=START; //Recibe
     estadoComandos=ALIVE; //Envia
 
-    ///Conexión de eventos
-    connect(mySerial,&QSerialPort::readyRead,this, &MainWindow::dataRecived ); //Si llega recibir
+    ///Conexión de eventos USART
+    connect(ui->actionConfiguracion_3, &QAction::triggered, mySettingsUSART, &SettingsDialog::show); //Esaneo de puerto
+    connect(mySerialUSART, &QSerialPort::readyRead, this, [this]() {
+        this->dataRecived(mySerialUSART, USART);
+    });
+    connect(ui->actionConectar_USART,&QAction::triggered, this, [this]() {
+        this->openSerialPort(mySettingsUSART, mySerialUSART, USART);
+    });
+    connect(ui->actionDesconectar_USART, &QAction::triggered, this, [this]() {
+        this->closeSerialPort(mySerialUSART, USART);
+    });
+    ///Conexión de eventos USB
+    connect(ui->actionConfiguracion_2, &QAction::triggered, mySettingsUSB, &SettingsDialog::show); //Esaneo de puerto
+    connect(mySerialUSB, &QSerialPort::readyRead, this, [this]() {
+        this->dataRecived(mySerialUSB, USB);
+    });
+    connect(ui->actionConectar_USB,&QAction::triggered, this, [this]() {
+        this->openSerialPort(mySettingsUSB, mySerialUSB, USB);
+    });
+    connect(ui->actionDesconectar_USB, &QAction::triggered, this, [this]() {
+        this->closeSerialPort(mySerialUSB, USB);
+    });
+    ///Conexion de eventos WiFi
+
+
+    ///Otras conexiones
     connect(myTimer, &QTimer::timeout,this, &MainWindow::myTimerOnTime); //intervalo de tiempo
-    connect(ui->actionEscaneo_de_puertos, &QAction::triggered, mySettings, &SettingsDialog::show); //Esaneo de puerto
-    connect(ui->actionConectar,&QAction::triggered,this, &MainWindow::openSerialPort); //Abrir puerto
-    connect(ui->actionDesconectar, &QAction::triggered, this, &MainWindow::closeSerialPort); //Cerrar puerto
     connect(ui->actionSalir,&QAction::triggered,this,&MainWindow::close ); //Cerrar programa
+
+
+    ///Definicion mensajes
+    ui->messageBox->addItem("ALIVE");
 }
 
 MainWindow::~MainWindow()
@@ -30,7 +57,7 @@ MainWindow::~MainWindow()
     delete ui;
 }
 
-void MainWindow::openSerialPort()
+void MainWindow::openSerialPort(SettingsDialog *mySettings, QSerialPort *mySerial, uint8_t port)
 {
     SettingsDialog::Settings p = mySettings->settings();
     //Configuracion de comunicacion
@@ -42,11 +69,20 @@ void MainWindow::openSerialPort()
     mySerial->setFlowControl(p.flowControl);
     mySerial->open(QSerialPort::ReadWrite);
     if(mySerial->isOpen()){
-        ui->actionConectar->setEnabled(false);
-        ui->actionDesconectar->setEnabled(true);
-        ui->estado->setText(tr("Conectado a  %1 : %2, %3, %4, %5, %6  %7")
-                            .arg(p.name).arg(p.stringBaudRate).arg(p.stringDataBits)
-                            .arg(p.stringParity).arg(p.stringStopBits).arg(p.stringFlowControl).arg(p.fabricante));
+        if(port == USB){
+            ui->actionConectar_USB->setEnabled(false);
+            ui->actionDesconectar_USB->setEnabled(true);
+            ui->estadoUSB->setText(tr("Conectado a  %1 : %2, %3, %4, %5, %6  %7")
+                                       .arg(p.name).arg(p.stringBaudRate).arg(p.stringDataBits)
+                                       .arg(p.stringParity).arg(p.stringStopBits).arg(p.stringFlowControl).arg(p.fabricante));
+        }
+        if(port == USART){
+            ui->actionConectar_USART->setEnabled(false);
+            ui->actionDesconectar_USART->setEnabled(true);
+            ui->estadoUSART->setText(tr("Conectado a  %1 : %2, %3, %4, %5, %6  %7")
+                                       .arg(p.name).arg(p.stringBaudRate).arg(p.stringDataBits)
+                                       .arg(p.stringParity).arg(p.stringStopBits).arg(p.stringFlowControl).arg(p.fabricante));
+        }
     }
     else{
         QMessageBox::warning(this,"Menu Conectar","No se pudo abrir el puerto Serie!!!!");
@@ -54,16 +90,28 @@ void MainWindow::openSerialPort()
 }
 
 //Tareas a realizar cuando se desconecta
-void MainWindow::closeSerialPort()
+void MainWindow::closeSerialPort(QSerialPort *mySerial, uint8_t port)
 {
     if(mySerial->isOpen()){
         mySerial->close();
-        ui->actionDesconectar->setEnabled(false);
-        ui->actionConectar->setEnabled(true);
-        ui->estado->setText("Desconectado................");
+        if(port == USB){
+            ui->actionDesconectar_USB->setEnabled(false);
+            ui->actionConectar_USB->setEnabled(true);
+            ui->estadoUSB->setText("Desconectado................");
+        }
+        if(port == USART){
+            ui->actionDesconectar_USART->setEnabled(false);
+            ui->actionConectar_USART->setEnabled(true);
+            ui->estadoUSART->setText("Desconectado................");
+        }
     }
     else{
-        ui->estado->setText("Desconectado................");
+        if(port == USB){
+            ui->estadoUSB->setText("Desconectado................");
+        }
+        if(port == USART){
+            ui->estadoUSART->setText("Desconectado................");
+        }
     }
 
 }
@@ -79,7 +127,7 @@ void MainWindow::myTimerOnTime()
 }
 
 //Verificar protocolo
-void MainWindow::dataRecived()
+void MainWindow::dataRecived(QSerialPort *mySerial, uint8_t port)
 {
 
     unsigned char *incomingBuffer;
@@ -153,7 +201,7 @@ void MainWindow::dataRecived()
             if(rxData.nBytes==0){
                 estadoProtocolo=START;
                 if(rxData.cheksum==incomingBuffer[i]){
-                    decodeData();
+                    decodeData(port);
                 }
             }
             break;
@@ -165,14 +213,16 @@ void MainWindow::dataRecived()
     delete [] incomingBuffer;
 }
 
-void MainWindow::decodeData()
+void MainWindow::decodeData(uint8_t port)
 {
 
     switch (rxData.payLoad[1]) {
     case ALIVE:
-        //ui->aliveEdit->setAlignment(Qt::AlignCenter);
-        //ui->aliveEdit->setText("I´M ALIVE");
-
+        if(port == USB){
+            ui->textUSB->append("ALIVE");
+        }else{
+            ui->textUSART->append("ALIVE");
+        }
         break;
     default:
         break;
@@ -180,7 +230,7 @@ void MainWindow::decodeData()
 }
 
 //Enviar datos, elaborar protocolo
-void MainWindow::sendData()
+void MainWindow::sendData(QSerialPort *mySerial)
 {
     //carga el header y token
     txData.index=0;
@@ -214,6 +264,32 @@ void MainWindow::sendData()
 
 
 }
+
+
+
+
+void MainWindow::on_pushButtonSend_clicked()
+{
+    sendData(mySerialUSB);
+}
+
+void MainWindow::on_pushButtonSend_2_clicked()
+{
+    sendData(mySerialUSART);
+}
+
+void MainWindow::on_messageBox_currentIndexChanged(int index)
+{
+    switch(ui->messageBox->currentIndex()){
+    case 0:
+        estadoComandos = ALIVE;
+    break;
+    default:
+        ui->textUSB->setText("Mensaje Incorrecto");
+        break;
+    }
+}
+
 
 
 
