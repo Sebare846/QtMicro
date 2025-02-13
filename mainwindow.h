@@ -3,6 +3,8 @@
 
 #include <QMainWindow>
 #include <QtSerialPort/QSerialPort>
+#include <QtNetwork/QUdpSocket>
+#include <QNetworkDatagram>
 #include <QTimer>
 #include <QTime>
 #include <QLabel>
@@ -23,17 +25,19 @@ public:
     MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
 
-    void openSerialPort(SettingsDialog *mySettings, QSerialPort *mySerial, uint8_t port);
+    void openSerialPort(SettingsDialog *mySettings, QSerialPort *mySerial);
 
-    void closeSerialPort(QSerialPort *mySerial, uint8_t port);
+    void closeSerialPort(QSerialPort *mySerial);
 
     void myTimerOnTime();
 
-    void dataRecived(QSerialPort *mySerial, uint8_t port);
+    void dataRecived(QSerialPort *mySerial);
 
-    void decodeData(uint8_t port);
+    void decodeData();
 
     void sendData(QSerialPort *mySerial);
+
+    void onRXUDP();
 
 private slots:
     void on_pushButtonSend_clicked();
@@ -42,12 +46,19 @@ private slots:
 
     void on_pushButtonSend_2_clicked();
 
+    void on_USB_Config_clicked();
+
+    void on_UDP_Conectar_clicked();
+
+    void on_pushButton_sendWifi_clicked();
+
 private:
     Ui::MainWindow *ui;
 
     QSerialPort *mySerialUSB, *mySerialUSART;
     QTimer *myTimer;
     SettingsDialog *mySettingsUSB, *mySettingsUSART;
+    QUdpSocket *myUDP;
 
     typedef enum{
         START,
@@ -62,20 +73,30 @@ private:
     _eProtocolo estadoProtocolo;
 
     typedef enum{
-        ACK = 0x0D,
+        ACK=0x0D,
         ALIVE=0xF0,
-        FIRMWARE = 0xF1,
+        TOESP=0xF1,
+        ESPMSG=0xF2,
+        IR_SENSOR=0xF3,
+        ESPSETUP=0XF4,
+        SETPID = 0xF5,
+        DATAPID = 0xF6,
         OTHERS
     }_eID;
 
     _eID estadoComandos;
 
     typedef enum{
-        USB = 0,
-        USART = 1
-    }_ePort;
+        iALIVE,
+        iTOESP,
+        iESPMSG,
+        iIR_SENSOR,
+        iESPSETUP,
+        iSETPID,
+        iPIDERROR
+    }_eIndex;
 
-    _ePort comPorts;
+    _eIndex cmdIndex;
 
     typedef struct{
         uint8_t timeOut;
@@ -102,6 +123,7 @@ private:
 
     _udat myWord;
 
+    float error, vBase = 7000, velD, velI, deltaV;
 
 
 };

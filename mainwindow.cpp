@@ -14,42 +14,49 @@ MainWindow::MainWindow(QWidget *parent)
     mySerialUSB = new QSerialPort(this);
     mySettingsUSB = new SettingsDialog();
     mySettingsUSART = new SettingsDialog();
+    myUDP = new QUdpSocket(this);
 
     estadoProtocolo=START; //Recibe
     estadoComandos=ALIVE; //Envia
 
-    ///Conexión de eventos USART
-    connect(ui->actionConfiguracion_3, &QAction::triggered, mySettingsUSART, &SettingsDialog::show); //Esaneo de puerto
-    connect(mySerialUSART, &QSerialPort::readyRead, this, [this]() {
-        this->dataRecived(mySerialUSART, USART);
-    });
-    connect(ui->actionConectar_USART,&QAction::triggered, this, [this]() {
-        this->openSerialPort(mySettingsUSART, mySerialUSART, USART);
-    });
-    connect(ui->actionDesconectar_USART, &QAction::triggered, this, [this]() {
-        this->closeSerialPort(mySerialUSART, USART);
-    });
     ///Conexión de eventos USB
-    connect(ui->actionConfiguracion_2, &QAction::triggered, mySettingsUSB, &SettingsDialog::show); //Esaneo de puerto
+    connect(ui->USB_Config, &QAbstractButton::clicked, mySettingsUSB, &SettingsDialog::show); //Esaneo de puerto
     connect(mySerialUSB, &QSerialPort::readyRead, this, [this]() {
-        this->dataRecived(mySerialUSB, USB);
+        this->dataRecived(mySerialUSB);
     });
-    connect(ui->actionConectar_USB,&QAction::triggered, this, [this]() {
-        this->openSerialPort(mySettingsUSB, mySerialUSB, USB);
+    connect(ui->USB_Conectar,&QAbstractButton::clicked, this, [this]() {
+        this->openSerialPort(mySettingsUSB, mySerialUSB);
+        ui->USB_Conectar->hide();
+        ui->USB_Desconectar->show();
     });
-    connect(ui->actionDesconectar_USB, &QAction::triggered, this, [this]() {
-        this->closeSerialPort(mySerialUSB, USB);
+    connect(ui->USB_Desconectar, &QAbstractButton::clicked, this, [this]() {
+        this->closeSerialPort(mySerialUSB);
+        ui->USB_Desconectar->hide();
+        ui->USB_Conectar->show();
     });
-    ///Conexion de eventos WiFi
 
 
     ///Otras conexiones
     connect(myTimer, &QTimer::timeout,this, &MainWindow::myTimerOnTime); //intervalo de tiempo
     connect(ui->actionSalir,&QAction::triggered,this,&MainWindow::close ); //Cerrar programa
 
-
     ///Definicion mensajes
     ui->messageBox->addItem("ALIVE");
+    ui->messageBox->addItem("ENVIAR A ESP");
+    ui->messageBox->addItem("COMENZAR TRANSMISION");
+    ui->messageBox->addItem("LECTURA SENSORES");
+    ui->messageBox->addItem("CONECTAR ESP01");
+    ui->messageBox->addItem("CONFIGURAR PID");
+
+    //Definicion redes
+    ui->messageBox_Redes->addItem("DEPTO");
+    ui->messageBox_Redes->addItem("FCAL");
+    ui->messageBox_Redes->addItem("LABORATORIO");
+    ui->messageBox_Redes->addItem("DEPTO SOFI");
+    ui->messageBox_Redes->addItem("CELU AP");
+    ui->messageBox_Redes->addItem("CASA RO");
+
+    ui->USB_Desconectar->hide();
 }
 
 MainWindow::~MainWindow()
@@ -57,7 +64,7 @@ MainWindow::~MainWindow()
     delete ui;
 }
 
-void MainWindow::openSerialPort(SettingsDialog *mySettings, QSerialPort *mySerial, uint8_t port)
+void MainWindow::openSerialPort(SettingsDialog *mySettings, QSerialPort *mySerial)
 {
     SettingsDialog::Settings p = mySettings->settings();
     //Configuracion de comunicacion
@@ -69,20 +76,11 @@ void MainWindow::openSerialPort(SettingsDialog *mySettings, QSerialPort *mySeria
     mySerial->setFlowControl(p.flowControl);
     mySerial->open(QSerialPort::ReadWrite);
     if(mySerial->isOpen()){
-        if(port == USB){
-            ui->actionConectar_USB->setEnabled(false);
-            ui->actionDesconectar_USB->setEnabled(true);
-            ui->estadoUSB->setText(tr("Conectado a  %1 : %2, %3, %4, %5, %6  %7")
-                                       .arg(p.name).arg(p.stringBaudRate).arg(p.stringDataBits)
-                                       .arg(p.stringParity).arg(p.stringStopBits).arg(p.stringFlowControl).arg(p.fabricante));
-        }
-        if(port == USART){
-            ui->actionConectar_USART->setEnabled(false);
-            ui->actionDesconectar_USART->setEnabled(true);
-            ui->estadoUSART->setText(tr("Conectado a  %1 : %2, %3, %4, %5, %6  %7")
-                                       .arg(p.name).arg(p.stringBaudRate).arg(p.stringDataBits)
-                                       .arg(p.stringParity).arg(p.stringStopBits).arg(p.stringFlowControl).arg(p.fabricante));
-        }
+        ui->actionConectar_USB->setEnabled(false);
+        ui->actionDesconectar_USB->setEnabled(true);
+        ui->estadoUSB->setText(tr("Conectado a  %1 : %2, %3, %4, %5, %6  %7")
+                                   .arg(p.name).arg(p.stringBaudRate).arg(p.stringDataBits)
+                                   .arg(p.stringParity).arg(p.stringStopBits).arg(p.stringFlowControl).arg(p.fabricante));
     }
     else{
         QMessageBox::warning(this,"Menu Conectar","No se pudo abrir el puerto Serie!!!!");
@@ -90,28 +88,17 @@ void MainWindow::openSerialPort(SettingsDialog *mySettings, QSerialPort *mySeria
 }
 
 //Tareas a realizar cuando se desconecta
-void MainWindow::closeSerialPort(QSerialPort *mySerial, uint8_t port)
+void MainWindow::closeSerialPort(QSerialPort *mySerial)
 {
     if(mySerial->isOpen()){
         mySerial->close();
-        if(port == USB){
-            ui->actionDesconectar_USB->setEnabled(false);
-            ui->actionConectar_USB->setEnabled(true);
-            ui->estadoUSB->setText("Desconectado................");
-        }
-        if(port == USART){
-            ui->actionDesconectar_USART->setEnabled(false);
-            ui->actionConectar_USART->setEnabled(true);
-            ui->estadoUSART->setText("Desconectado................");
-        }
+        ui->actionDesconectar_USB->setEnabled(false);
+        ui->actionConectar_USB->setEnabled(true);
+        ui->estadoUSB->setText("Desconectado................");
+
     }
     else{
-        if(port == USB){
-            ui->estadoUSB->setText("Desconectado................");
-        }
-        if(port == USART){
-            ui->estadoUSART->setText("Desconectado................");
-        }
+        ui->estadoUSB->setText("Desconectado................");
     }
 
 }
@@ -127,7 +114,7 @@ void MainWindow::myTimerOnTime()
 }
 
 //Verificar protocolo
-void MainWindow::dataRecived(QSerialPort *mySerial, uint8_t port)
+void MainWindow::dataRecived(QSerialPort *mySerial)
 {
 
     unsigned char *incomingBuffer;
@@ -143,6 +130,7 @@ void MainWindow::dataRecived(QSerialPort *mySerial, uint8_t port)
     mySerial->read((char *)incomingBuffer,count);
 
     //ui->label->setText((char *)incomingBuffer);
+    ui->textUSB->append((char *)incomingBuffer);
     rxData.timeOut=5;
     for(int i=0;i<count; i++){
         switch (estadoProtocolo) {
@@ -201,7 +189,7 @@ void MainWindow::dataRecived(QSerialPort *mySerial, uint8_t port)
             if(rxData.nBytes==0){
                 estadoProtocolo=START;
                 if(rxData.cheksum==incomingBuffer[i]){
-                    decodeData(port);
+                    decodeData();
                 }
             }
             break;
@@ -213,17 +201,89 @@ void MainWindow::dataRecived(QSerialPort *mySerial, uint8_t port)
     delete [] incomingBuffer;
 }
 
-void MainWindow::decodeData(uint8_t port)
+void MainWindow::decodeData()
 {
 
     switch (rxData.payLoad[1]) {
     case ALIVE:
-        if(port == USB){
-            ui->textUSB->append("ALIVE");
-        }else{
-            ui->textUSART->append("ALIVE");
-        }
+        ui->textUSB->append("ALIVE");
         break;
+    case IR_SENSOR:
+        myWord.ui8[0] = rxData.payLoad[2];
+        myWord.ui8[1] = rxData.payLoad[3];
+        ui->lcdIR0->display(myWord.ui16[0]);
+        myWord.ui8[0] = rxData.payLoad[4];
+        myWord.ui8[1] = rxData.payLoad[5];
+        ui->lcdIR1->display(myWord.ui16[0]);
+        myWord.ui8[0] = rxData.payLoad[6];
+        myWord.ui8[1] = rxData.payLoad[7];
+        ui->lcdIR2->display(myWord.ui16[0]);
+        myWord.ui8[0] = rxData.payLoad[8];
+        myWord.ui8[1] = rxData.payLoad[9];
+        ui->lcdIR3->display(myWord.ui16[0]);
+        myWord.ui8[0] = rxData.payLoad[10];
+        myWord.ui8[1] = rxData.payLoad[11];
+        ui->lcdIR4->display(myWord.ui16[0]);
+        myWord.ui8[0] = rxData.payLoad[12];
+        myWord.ui8[1] = rxData.payLoad[13];
+        ui->lcdIR5->display(myWord.ui16[0]);
+        myWord.ui8[0] = rxData.payLoad[14];
+        myWord.ui8[1] = rxData.payLoad[15];
+        ui->lcdIR6->display(myWord.ui16[0]);
+        myWord.ui8[0] = rxData.payLoad[16];
+        myWord.ui8[1] = rxData.payLoad[17];
+        ui->lcdIR7->display(myWord.ui16[0]);
+        break;
+    case ESPMSG:
+        ui->textUSB->append("TRANSMISION INICIADA");
+        break;
+    case ESPSETUP:
+        ui->textUSB->append("CONFIGURACION ESP");
+        break;
+    case SETPID:
+        ui->textUSB->append("PID SET");
+    case DATAPID:
+        myWord.ui8[0] = rxData.payLoad[2];
+        myWord.ui8[1] = rxData.payLoad[3];
+        myWord.ui8[2] = rxData.payLoad[4];
+        myWord.ui8[3] = rxData.payLoad[5];
+        error = myWord.f32;
+        ui->lcdError->display(error);
+        // deltaV = error*8000/100;
+        // ui->lcdDv->display(deltaV);
+        // velD += deltaV;
+        // velI -= deltaV;
+
+        // if(abs(velD) > 8000){velD = 8000;}
+        // if(abs(velI) > 8000){velI = 8000;}
+
+        // //Motor Derecho
+        // if(velD >= 0){
+        //     ui->lcdVD->display(velD);
+        //     ui->lcdVDm->display(0);
+        // }else{
+        //     ui->lcdVD->display(0);
+        //     ui->lcdVDm->display(velD*(-1));
+        // }
+        // //Motor Izquierdo
+        // if(velD >= 0){
+        //     ui->lcdVI->display(velI);
+        //     ui->lcdVIm->display(0);
+        // }else{
+        //     ui->lcdVI->display(0);
+        //     ui->lcdVIm->display(velI*(-1));
+        // }
+
+        myWord.ui8[0] = rxData.payLoad[6];
+        myWord.ui8[1] = rxData.payLoad[7];
+        myWord.ui8[2] = rxData.payLoad[8];
+        myWord.ui8[3] = rxData.payLoad[9];
+        ui->lcdVD->display(myWord.f32);
+        myWord.ui8[0] = rxData.payLoad[10];
+        myWord.ui8[1] = rxData.payLoad[11];
+        myWord.ui8[2] = rxData.payLoad[12];
+        myWord.ui8[3] = rxData.payLoad[13];
+        ui->lcdVI->display(myWord.f32);
     default:
         break;
     }
@@ -245,7 +305,37 @@ void MainWindow::sendData(QSerialPort *mySerial)
     case ALIVE:
         txData.payLoad[txData.index++]=ALIVE;
         txData.payLoad[NBYTES]=0x02;
+        break;
+    case ESPSETUP:
+        txData.payLoad[txData.index++]=ESPSETUP;
+        txData.payLoad[txData.index++]=ui->messageBox_Redes->currentIndex();
+        txData.payLoad[NBYTES]=0x03;
+    break;
+    case ESPMSG:
+        txData.payLoad[txData.index++]=ESPMSG;
+        txData.payLoad[NBYTES]=0x02;
+    break;
+    case SETPID:
+        txData.payLoad[txData.index++]=SETPID;
+        myWord.f32 = (float)ui->spinBox_Kp->value();
+        txData.payLoad[txData.index++]=myWord.ui8[3];
+        txData.payLoad[txData.index++]=myWord.ui8[2];
+        txData.payLoad[txData.index++]=myWord.ui8[1];
+        txData.payLoad[txData.index++]=myWord.ui8[0];
 
+        myWord.f32 = (float)ui->spinBox_Td->value();
+        txData.payLoad[txData.index++]=myWord.ui8[3];
+        txData.payLoad[txData.index++]=myWord.ui8[2];
+        txData.payLoad[txData.index++]=myWord.ui8[1];
+        txData.payLoad[txData.index++]=myWord.ui8[0];
+
+        myWord.f32 = (float)ui->spinBox_Ti->value();
+        txData.payLoad[txData.index++]=myWord.ui8[3];
+        txData.payLoad[txData.index++]=myWord.ui8[2];
+        txData.payLoad[txData.index++]=myWord.ui8[1];
+        txData.payLoad[txData.index++]=myWord.ui8[0];
+
+        txData.payLoad[NBYTES]=0x0E;
         break;
     default:
         break;
@@ -266,23 +356,28 @@ void MainWindow::sendData(QSerialPort *mySerial)
 }
 
 
-
-
 void MainWindow::on_pushButtonSend_clicked()
 {
     sendData(mySerialUSB);
 }
 
-void MainWindow::on_pushButtonSend_2_clicked()
-{
-    sendData(mySerialUSART);
-}
-
 void MainWindow::on_messageBox_currentIndexChanged(int index)
 {
     switch(ui->messageBox->currentIndex()){
-    case 0:
+    case iALIVE:
         estadoComandos = ALIVE;
+    break;
+    case iESPMSG:
+        estadoComandos = ESPMSG;
+    break;
+    case iIR_SENSOR:
+        estadoComandos = IR_SENSOR;
+    break;
+    case iESPSETUP:
+        estadoComandos = ESPSETUP;
+    break;
+    case iSETPID:
+        estadoComandos = SETPID;
     break;
     default:
         ui->textUSB->setText("Mensaje Incorrecto");
@@ -290,6 +385,41 @@ void MainWindow::on_messageBox_currentIndexChanged(int index)
     }
 }
 
+void MainWindow::onRXUDP(){
+    while (myUDP->hasPendingDatagrams()) {
+        QNetworkDatagram UDPdata = myUDP->receiveDatagram();
+        ui->textWIFI->append("UDP RECEIVED:");
+        ui->textWIFI->append(UDPdata.data().data());
+    }
+}
+
+void MainWindow::on_UDP_Conectar_clicked()
+{
+    ///Conexion de eventos WiFi
+    if(myUDP->bind(QHostAddress("192.168.100.39"), 30010,QUdpSocket::ShareAddress | QUdpSocket::ReuseAddressHint)){
+        connect(myUDP, &QUdpSocket::readyRead ,this, &MainWindow::onRXUDP);
+        ui->textWIFI->append("UDP CONNECTED");
+    }else{
+        ui->textWIFI->append("CONECTION ERROR");
+    }
+}
 
 
+void MainWindow::on_pushButton_sendWifi_clicked()
+{
+    char buf[10];
+    buf[0] = 'U';
+    buf[1] = 'N';
+    buf[2] = 'E';
+    buf[3] = 'R';
+    buf[4] = 0x32;
+    buf[5] = ':';
+    buf[6] = 0xF0;
+    buf[7] = 0xC4;
+
+    myUDP->writeDatagram(buf,sizeof(buf),QHostAddress("192.168.100.39"),30010);
+    //ui->textWIFI->append();
+    //myUDP->write(QByteArray(buf));
+
+}
 
