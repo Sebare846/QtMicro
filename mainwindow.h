@@ -47,7 +47,7 @@ public:
 
     void decodeData(_sDatos data);
 
-    void sendData(QSerialPort *mySerial);
+    void sendData(_sDatos data);
 
     void onRXUDP();
 

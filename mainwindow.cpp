@@ -167,7 +167,6 @@ void MainWindow::onRXUSB(QSerialPort *mySerial)
 void MainWindow::onRXUDP(){
     uint8_t count = 0;
     while (myUDP->hasPendingDatagrams()) {
-        ui->textWIFI->append("Recibido");
         QNetworkDatagram UDPdata = myUDP->receiveDatagram();
         count = UDPdata.data().size();
         ui->testLabel->setNum(count);
@@ -181,13 +180,9 @@ void MainWindow::onRXUDP(){
             UDPrxData.indexw &= 255;
         }
 
-        // memcpy(UDPrxData.buffer,UDPdata.data(),count);
-        // UDPrxData.indexw += count;
-        // UDPrxData.indexw &= 255;
-
-        QString auxStr;
-        auxStr.append(UDPdata.data().toHex());
-        ui->textWIFI->append(auxStr);
+        //QString auxStr;
+        //auxStr.append(UDPdata.data().toHex());
+        //ui->textWIFI->append(auxStr);
     }
 
 }
@@ -345,83 +340,106 @@ void MainWindow::decodeData(_sDatos data)
 }
 
 //Enviar datos, elaborar protocolo
-void MainWindow::sendData(QSerialPort *mySerial)
+void MainWindow::sendData(_sDatos data)
 {
     QString text;
     uint8_t auxIndex = 0;
     //carga el header y token
-    USBtxData.payLoad[auxIndex++]='U';
-    USBtxData.payLoad[auxIndex++]='N';
-    USBtxData.payLoad[auxIndex++]='E';
-    USBtxData.payLoad[auxIndex++]='R';
-    USBtxData.payLoad[auxIndex++]=0;
-    USBtxData.payLoad[auxIndex++]=':';
+    data.buffer[auxIndex++]='U';
+    data.buffer[auxIndex++]='N';
+    data.buffer[auxIndex++]='E';
+    data.buffer[auxIndex++]='R';
+    data.buffer[auxIndex++]=0;
+    data.buffer[auxIndex++]=':';
     //carga el ID y nBytes
     switch (estadoComandos) {
     case ALIVE:
         text = "ALIVE";
-        USBtxData.payLoad[auxIndex++]=ALIVE;
-        USBtxData.payLoad[NBYTES]=0x02;
+        data.buffer[auxIndex++]=ALIVE;
+        data.buffer[NBYTES]=0x02;
         break;
     case ESPSETUP:
         text = "SET ESP";
-        USBtxData.payLoad[auxIndex++]=ESPSETUP;
-        USBtxData.payLoad[auxIndex++]=ui->messageBox_Redes->currentIndex();
-        USBtxData.payLoad[NBYTES]=0x03;
+        data.buffer[auxIndex++]=ESPSETUP;
+        data.buffer[auxIndex++]=ui->messageBox_Redes->currentIndex();
+        data.buffer[NBYTES]=0x03;
     break;
     case ESPMSG:
         text = "ESP MESSAGE";
-        USBtxData.payLoad[auxIndex++]=ESPMSG;
-        USBtxData.payLoad[NBYTES]=0x02;
+        data.buffer[auxIndex++]=ESPMSG;
+        data.buffer[NBYTES]=0x02;
     break;
     case SETPID:
         text = "SET PID";
-        USBtxData.payLoad[auxIndex++]=SETPID;
+        data.buffer[auxIndex++]=SETPID;
         myWord.f32 = (float)ui->spinBox_Kp->value();
-        USBtxData.payLoad[auxIndex++]=myWord.ui8[3];
-        USBtxData.payLoad[auxIndex++]=myWord.ui8[2];
-        USBtxData.payLoad[auxIndex++]=myWord.ui8[1];
-        USBtxData.payLoad[auxIndex++]=myWord.ui8[0];
+        data.buffer[auxIndex++]=myWord.ui8[3];
+        data.buffer[auxIndex++]=myWord.ui8[2];
+        data.buffer[auxIndex++]=myWord.ui8[1];
+        data.buffer[auxIndex++]=myWord.ui8[0];
 
         myWord.f32 = (float)ui->spinBox_Td->value();
-        USBtxData.payLoad[auxIndex++]=myWord.ui8[3];
-        USBtxData.payLoad[auxIndex++]=myWord.ui8[2];
-        USBtxData.payLoad[auxIndex++]=myWord.ui8[1];
-        USBtxData.payLoad[auxIndex++]=myWord.ui8[0];
+        data.buffer[auxIndex++]=myWord.ui8[3];
+        data.buffer[auxIndex++]=myWord.ui8[2];
+        data.buffer[auxIndex++]=myWord.ui8[1];
+        data.buffer[auxIndex++]=myWord.ui8[0];
 
         myWord.f32 = (float)ui->spinBox_Ti->value();
-        USBtxData.payLoad[auxIndex++]=myWord.ui8[3];
-        USBtxData.payLoad[auxIndex++]=myWord.ui8[2];
-        USBtxData.payLoad[auxIndex++]=myWord.ui8[1];
-        USBtxData.payLoad[auxIndex++]=myWord.ui8[0];
+        data.buffer[auxIndex++]=myWord.ui8[3];
+        data.buffer[auxIndex++]=myWord.ui8[2];
+        data.buffer[auxIndex++]=myWord.ui8[1];
+        data.buffer[auxIndex++]=myWord.ui8[0];
 
-        USBtxData.payLoad[NBYTES]=0x0E;
+        data.buffer[NBYTES]=0x0E;
         break;
     default:
         break;
     }
 
-    USBtxData.cheksum=0;
+    data.cheksum=0;
 
     //recuenta los bytes y carga el checksum
     for(int a=0 ;a<auxIndex;a++)
-        USBtxData.cheksum^=USBtxData.payLoad[a];
-    USBtxData.payLoad[auxIndex]=USBtxData.cheksum;
-    if(mySerial->isWritable()){
-        ui->textUSB->append("Sent: ");
-        ui->textUSB->insertPlainText(text);
-        mySerial->write((char *)USBtxData.payLoad,USBtxData.payLoad[NBYTES]+6);
-        USBtxData.indexw += auxIndex;
-        USBtxData.indexw &= 255;
-    }
+        data.cheksum^=data.buffer[a];
+    data.buffer[auxIndex]=data.cheksum;
 
+    data.nBytes = data.buffer[NBYTES] + 6;
+
+    switch(data.comID){
+    case USBID:
+        if(mySerialUSB->isWritable()){
+            ui->textUSB->append("Sent: ");
+            ui->textUSB->insertPlainText(text);
+            mySerialUSB->write((char *)data.buffer,data.nBytes);
+            USBtxData.indexw += auxIndex;
+            USBtxData.indexw &= 255;
+        }
+        break;
+    case UDPID:
+        char bytesSent, bytesToSend;
+        bytesToSend = '0' + data.nBytes;
+        bytesSent = '0' + myUDP->writeDatagram((char *)data.buffer,data.nBytes,targetIP,targetPort);
+        if(bytesSent != 0){
+            UDPtxData.indexw += auxIndex;
+            UDPtxData.indexw &= 255;
+            ui->textWIFI->append(QString("Sent %1 of %2 bytes: %3")
+                                     .arg(bytesSent)
+                                     .arg(bytesToSend)
+                                     .arg(text));
+        }else{
+            ui->textWIFI->append("Error Sending");
+        }
+        break;
+    default:
+        break;
+    }
 
 }
 
 
 void MainWindow::on_pushButtonSend_clicked()
 {
-    sendData(mySerialUSB);
+    sendData(USBtxData);
 }
 
 void MainWindow::on_messageBox_currentIndexChanged(int index)
@@ -464,19 +482,20 @@ void MainWindow::on_UDP_Conectar_clicked()
 void MainWindow::on_pushButton_sendWifi_clicked()
 {
 
-    uint8_t bytesSent;
-    char buf[9];
-    buf[0] = 'U';
-    buf[1] = 'N';
-    buf[2] = 'E';
-    buf[3] = 'R';
-    buf[4] = 0x02;
-    buf[5] = ':';
-    buf[6] = 0xF0;
-    buf[7] = 0xC4;
+    // uint8_t bytesSent;
+    // char buf[9];
+    // buf[0] = 'U';
+    // buf[1] = 'N';
+    // buf[2] = 'E';
+    // buf[3] = 'R';
+    // buf[4] = 0x02;
+    // buf[5] = ':';
+    // buf[6] = 0xF0;
+    // buf[7] = 0xC4;
 
-    bytesSent = myUDP->writeDatagram(buf,sizeof(buf),targetIP,targetPort);
-    ui->testLabel->setNum(bytesSent);
+    // bytesSent = myUDP->writeDatagram(buf,sizeof(buf),targetIP,targetPort);
+    // ui->testLabel->setNum(bytesSent);
+    sendData(UDPtxData);
 
 }
 
