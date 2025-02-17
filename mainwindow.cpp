@@ -10,11 +10,14 @@ MainWindow::MainWindow(QWidget *parent)
 {
     ui->setupUi(this);
     myTimer = new QTimer(this);
-    mySerialUSART = new QSerialPort(this);
+   mySerialUSART = new QSerialPort(this);
     mySerialUSB = new QSerialPort(this);
     mySettingsUSB = new SettingsDialog();
     mySettingsUSART = new SettingsDialog();
     myUDP = new QUdpSocket(this);
+
+    targetIP = QHostAddress("192.168.100.29");
+    targetPort = 30001;
 
     estadoProtocolo=START; //Recibe
     estadoComandos=ALIVE; //Envia
@@ -22,7 +25,7 @@ MainWindow::MainWindow(QWidget *parent)
     ///Conexión de eventos USB
     connect(ui->USB_Config, &QAbstractButton::clicked, mySettingsUSB, &SettingsDialog::show); //Esaneo de puerto
     connect(mySerialUSB, &QSerialPort::readyRead, this, [this]() {
-        this->dataRecived(mySerialUSB);
+        this->onRXUSB(mySerialUSB);
     });
     connect(ui->USB_Conectar,&QAbstractButton::clicked, this, [this]() {
         this->openSerialPort(mySettingsUSB, mySerialUSB);
@@ -56,7 +59,25 @@ MainWindow::MainWindow(QWidget *parent)
     ui->messageBox_Redes->addItem("CELU AP");
     ui->messageBox_Redes->addItem("CASA RO");
 
+    //Inicializacion Variables
+    USBrxData.comID = USBID;
+    USBrxData.indexr = 0;
+    USBrxData.indexw = 0;
+    USBrxData.nBytes = 0;
+    USBtxData.comID = USBID;
+    USBtxData.indexr = 0;
+    USBtxData.indexw = 0;
+    UDPrxData.comID = UDPID;
+    UDPrxData.indexr = 0;
+    UDPrxData.indexw = 0;
+    UDPrxData.nBytes = 0;
+    UDPtxData.comID = UDPID;
+    UDPtxData.indexr = 0;
+    UDPtxData.indexr = 0;
+
     ui->USB_Desconectar->hide();
+
+    myTimer->start(100);
 }
 
 MainWindow::~MainWindow()
@@ -105,18 +126,21 @@ void MainWindow::closeSerialPort(QSerialPort *mySerial)
 
 void MainWindow::myTimerOnTime()
 {
-    //Si timeout verificar si hay datos para recibir
-    if(rxData.timeOut!=0){
-        rxData.timeOut--;
-    }else{
-        estadoProtocolo=START;
+
+    if(USBrxData.indexr != USBrxData.indexw){
+        dataRecived(USBrxData);
     }
+
+    if(UDPrxData.indexr != UDPrxData.indexw){
+        dataRecived(UDPrxData);
+    }
+
+    //->testLabel->setNum(myUDP->state());
 }
 
-//Verificar protocolo
-void MainWindow::dataRecived(QSerialPort *mySerial)
+//Recepcion de datos USB
+void MainWindow::onRXUSB(QSerialPort *mySerial)
 {
-
     unsigned char *incomingBuffer;
     int count;
     //numero de bytes
@@ -129,19 +153,59 @@ void MainWindow::dataRecived(QSerialPort *mySerial)
 
     mySerial->read((char *)incomingBuffer,count);
 
-    //ui->label->setText((char *)incomingBuffer);
-    ui->textUSB->append((char *)incomingBuffer);
-    rxData.timeOut=5;
-    for(int i=0;i<count; i++){
+    //ui->textUSB->append((char *)incomingBuffer);
+
+    for(uint8_t i = 0; i < count; i++){
+        USBrxData.buffer[i] = uint8_t(incomingBuffer[i]);
+        USBrxData.indexw++;
+        USBrxData.indexw &= 255;
+    }
+
+}
+
+//Recepcion de datos UDP
+void MainWindow::onRXUDP(){
+    uint8_t count = 0;
+    while (myUDP->hasPendingDatagrams()) {
+        ui->textWIFI->append("Recibido");
+        QNetworkDatagram UDPdata = myUDP->receiveDatagram();
+        count = UDPdata.data().size();
+        ui->testLabel->setNum(count);
+
+        if(count <= 0)
+            return;
+
+        for(uint8_t i = 0; i < count; i++){
+            UDPrxData.buffer[i] = UDPdata.data()[i];
+            UDPrxData.indexw++;
+            UDPrxData.indexw &= 255;
+        }
+
+        // memcpy(UDPrxData.buffer,UDPdata.data(),count);
+        // UDPrxData.indexw += count;
+        // UDPrxData.indexw &= 255;
+
+        QString auxStr;
+        auxStr.append(UDPdata.data().toHex());
+        ui->textWIFI->append(auxStr);
+    }
+
+}
+
+//Verificar protocolo
+void MainWindow::dataRecived(_sDatos data)
+{
+    uint8_t bytes = data.indexw - data.indexr;
+    for(int i=0;i<bytes; i++){
         switch (estadoProtocolo) {
         case START:
-            if (incomingBuffer[i]=='U'){
+            if (data.buffer[i]=='U'){
                 estadoProtocolo=HEADER_1;
-                rxData.cheksum=0;
+                data.cheksum=0;
             }
             break;
         case HEADER_1:
-            if (incomingBuffer[i]=='N')
+            if (data.buffer[i]=='N')
                 estadoProtocolo=HEADER_2;
             else{
                 i--;
@@ -149,7 +213,7 @@ void MainWindow::dataRecived(QSerialPort *mySerial)
             }
             break;
         case HEADER_2:
-            if (incomingBuffer[i]=='E')
+            if (data.buffer[i]=='E')
                 estadoProtocolo=HEADER_3;
             else{
                 i--;
@@ -157,7 +221,7 @@ void MainWindow::dataRecived(QSerialPort *mySerial)
             }
             break;
         case HEADER_3:
-            if (incomingBuffer[i]=='R')
+            if (data.buffer[i]=='R')
                 estadoProtocolo=NBYTES;
             else{
                 i--;
@@ -165,15 +229,15 @@ void MainWindow::dataRecived(QSerialPort *mySerial)
             }
             break;
         case NBYTES:
-            rxData.nBytes=incomingBuffer[i];
+            data.nBytes = data.buffer[i];
             estadoProtocolo=TOKEN;
             break;
         case TOKEN:
-            if (incomingBuffer[i]==':'){
+            if (data.buffer[i]==':'){
                 estadoProtocolo=PAYLOAD;
-                rxData.cheksum='U'^'N'^'E'^'R'^ rxData.nBytes^':';
-                rxData.payLoad[0]=rxData.nBytes;
-                rxData.index=1;
+                data.cheksum='U'^'N'^'E'^'R'^ data.nBytes ^':';
+                data.payLoad[0]=data.nBytes;
+                data.indexP=1;
             }
             else{
                 i--;
@@ -181,15 +245,15 @@ void MainWindow::dataRecived(QSerialPort *mySerial)
             }
             break;
         case PAYLOAD:
-            if (rxData.nBytes>1){
-                rxData.payLoad[rxData.index++]=incomingBuffer[i];
-                rxData.cheksum^=incomingBuffer[i];
+            if (data.nBytes>1){
+                data.payLoad[data.indexP++]=data.buffer[i];
+                data.cheksum^=data.buffer[i];
             }
-            rxData.nBytes--;
-            if(rxData.nBytes==0){
+            data.nBytes--;
+            if(data.nBytes==0){
                 estadoProtocolo=START;
-                if(rxData.cheksum==incomingBuffer[i]){
-                    decodeData();
+                if(data.cheksum==data.buffer[i]){
+                    decodeData(data);
                 }
             }
             break;
@@ -198,92 +262,83 @@ void MainWindow::dataRecived(QSerialPort *mySerial)
             break;
         }
     }
-    delete [] incomingBuffer;
+
 }
 
-void MainWindow::decodeData()
+void MainWindow::decodeData(_sDatos data)
 {
 
-    switch (rxData.payLoad[1]) {
+    QString text;
+    switch (data.payLoad[1]) {
     case ALIVE:
-        ui->textUSB->append("ALIVE");
+        text = "ALIVE";
         break;
     case IR_SENSOR:
-        myWord.ui8[0] = rxData.payLoad[2];
-        myWord.ui8[1] = rxData.payLoad[3];
+        myWord.ui8[0] = data.payLoad[2];
+        myWord.ui8[1] = data.payLoad[3];
         ui->lcdIR0->display(myWord.ui16[0]);
-        myWord.ui8[0] = rxData.payLoad[4];
-        myWord.ui8[1] = rxData.payLoad[5];
+        myWord.ui8[0] = data.payLoad[4];
+        myWord.ui8[1] = data.payLoad[5];
         ui->lcdIR1->display(myWord.ui16[0]);
-        myWord.ui8[0] = rxData.payLoad[6];
-        myWord.ui8[1] = rxData.payLoad[7];
+        myWord.ui8[0] = data.payLoad[6];
+        myWord.ui8[1] = data.payLoad[7];
         ui->lcdIR2->display(myWord.ui16[0]);
-        myWord.ui8[0] = rxData.payLoad[8];
-        myWord.ui8[1] = rxData.payLoad[9];
+        myWord.ui8[0] = data.payLoad[8];
+        myWord.ui8[1] = data.payLoad[9];
         ui->lcdIR3->display(myWord.ui16[0]);
-        myWord.ui8[0] = rxData.payLoad[10];
-        myWord.ui8[1] = rxData.payLoad[11];
+        myWord.ui8[0] = data.payLoad[10];
+        myWord.ui8[1] = data.payLoad[11];
         ui->lcdIR4->display(myWord.ui16[0]);
-        myWord.ui8[0] = rxData.payLoad[12];
-        myWord.ui8[1] = rxData.payLoad[13];
+        myWord.ui8[0] = data.payLoad[12];
+        myWord.ui8[1] = data.payLoad[13];
         ui->lcdIR5->display(myWord.ui16[0]);
-        myWord.ui8[0] = rxData.payLoad[14];
-        myWord.ui8[1] = rxData.payLoad[15];
+        myWord.ui8[0] = data.payLoad[14];
+        myWord.ui8[1] = data.payLoad[15];
         ui->lcdIR6->display(myWord.ui16[0]);
-        myWord.ui8[0] = rxData.payLoad[16];
-        myWord.ui8[1] = rxData.payLoad[17];
+        myWord.ui8[0] = data.payLoad[16];
+        myWord.ui8[1] = data.payLoad[17];
         ui->lcdIR7->display(myWord.ui16[0]);
         break;
     case ESPMSG:
-        ui->textUSB->append("TRANSMISION INICIADA");
+        text = "TRANSMISION INICIADA";
         break;
     case ESPSETUP:
-        ui->textUSB->append("CONFIGURACION ESP");
+        text = "CONFIGURACION ESP";
         break;
     case SETPID:
-        ui->textUSB->append("PID SET");
+        text = "PID SET";
     case DATAPID:
-        myWord.ui8[0] = rxData.payLoad[2];
-        myWord.ui8[1] = rxData.payLoad[3];
-        myWord.ui8[2] = rxData.payLoad[4];
-        myWord.ui8[3] = rxData.payLoad[5];
+        myWord.ui8[0] = data.payLoad[2];
+        myWord.ui8[1] = data.payLoad[3];
+        myWord.ui8[2] = data.payLoad[4];
+        myWord.ui8[3] = data.payLoad[5];
         error = myWord.f32;
         ui->lcdError->display(error);
-        // deltaV = error*8000/100;
-        // ui->lcdDv->display(deltaV);
-        // velD += deltaV;
-        // velI -= deltaV;
-
-        // if(abs(velD) > 8000){velD = 8000;}
-        // if(abs(velI) > 8000){velI = 8000;}
-
-        // //Motor Derecho
-        // if(velD >= 0){
-        //     ui->lcdVD->display(velD);
-        //     ui->lcdVDm->display(0);
-        // }else{
-        //     ui->lcdVD->display(0);
-        //     ui->lcdVDm->display(velD*(-1));
-        // }
-        // //Motor Izquierdo
-        // if(velD >= 0){
-        //     ui->lcdVI->display(velI);
-        //     ui->lcdVIm->display(0);
-        // }else{
-        //     ui->lcdVI->display(0);
-        //     ui->lcdVIm->display(velI*(-1));
-        // }
-
-        myWord.ui8[0] = rxData.payLoad[6];
-        myWord.ui8[1] = rxData.payLoad[7];
-        myWord.ui8[2] = rxData.payLoad[8];
-        myWord.ui8[3] = rxData.payLoad[9];
+        myWord.ui8[0] = data.payLoad[6];
+        myWord.ui8[1] = data.payLoad[7];
+        myWord.ui8[2] = data.payLoad[8];
+        myWord.ui8[3] = data.payLoad[9];
         ui->lcdVD->display(myWord.f32);
-        myWord.ui8[0] = rxData.payLoad[10];
-        myWord.ui8[1] = rxData.payLoad[11];
-        myWord.ui8[2] = rxData.payLoad[12];
-        myWord.ui8[3] = rxData.payLoad[13];
+        myWord.ui8[0] = data.payLoad[10];
+        myWord.ui8[1] = data.payLoad[11];
+        myWord.ui8[2] = data.payLoad[12];
+        myWord.ui8[3] = data.payLoad[13];
         ui->lcdVI->display(myWord.f32);
+    default:
+        break;
+    }
+
+    switch(data.comID){
+    case USBID:
+        ui->textUSB->append("Received: ");
+        ui->textUSB->insertPlainText(text);
+        USBrxData.indexr = USBrxData.indexw;
+        break;
+    case UDPID:
+        ui->textWIFI->append("Received: ");
+        ui->textWIFI->append(text);
+        UDPrxData.indexr = UDPrxData.indexw;
+        break;
     default:
         break;
     }
@@ -292,64 +347,72 @@ void MainWindow::decodeData()
 //Enviar datos, elaborar protocolo
 void MainWindow::sendData(QSerialPort *mySerial)
 {
+    QString text;
+    uint8_t auxIndex = 0;
     //carga el header y token
-    txData.index=0;
-    txData.payLoad[txData.index++]='U';
-    txData.payLoad[txData.index++]='N';
-    txData.payLoad[txData.index++]='E';
-    txData.payLoad[txData.index++]='R';
-    txData.payLoad[txData.index++]=0;
-    txData.payLoad[txData.index++]=':';
+    USBtxData.payLoad[auxIndex++]='U';
+    USBtxData.payLoad[auxIndex++]='N';
+    USBtxData.payLoad[auxIndex++]='E';
+    USBtxData.payLoad[auxIndex++]='R';
+    USBtxData.payLoad[auxIndex++]=0;
+    USBtxData.payLoad[auxIndex++]=':';
     //carga el ID y nBytes
     switch (estadoComandos) {
     case ALIVE:
-        txData.payLoad[txData.index++]=ALIVE;
-        txData.payLoad[NBYTES]=0x02;
+        text = "ALIVE";
+        USBtxData.payLoad[auxIndex++]=ALIVE;
+        USBtxData.payLoad[NBYTES]=0x02;
         break;
     case ESPSETUP:
-        txData.payLoad[txData.index++]=ESPSETUP;
-        txData.payLoad[txData.index++]=ui->messageBox_Redes->currentIndex();
-        txData.payLoad[NBYTES]=0x03;
+        text = "SET ESP";
+        USBtxData.payLoad[auxIndex++]=ESPSETUP;
+        USBtxData.payLoad[auxIndex++]=ui->messageBox_Redes->currentIndex();
+        USBtxData.payLoad[NBYTES]=0x03;
     break;
     case ESPMSG:
-        txData.payLoad[txData.index++]=ESPMSG;
-        txData.payLoad[NBYTES]=0x02;
+        text = "ESP MESSAGE";
+        USBtxData.payLoad[auxIndex++]=ESPMSG;
+        USBtxData.payLoad[NBYTES]=0x02;
     break;
     case SETPID:
-        txData.payLoad[txData.index++]=SETPID;
+        text = "SET PID";
+        USBtxData.payLoad[auxIndex++]=SETPID;
         myWord.f32 = (float)ui->spinBox_Kp->value();
-        txData.payLoad[txData.index++]=myWord.ui8[3];
-        txData.payLoad[txData.index++]=myWord.ui8[2];
-        txData.payLoad[txData.index++]=myWord.ui8[1];
-        txData.payLoad[txData.index++]=myWord.ui8[0];
+        USBtxData.payLoad[auxIndex++]=myWord.ui8[3];
+        USBtxData.payLoad[auxIndex++]=myWord.ui8[2];
+        USBtxData.payLoad[auxIndex++]=myWord.ui8[1];
+        USBtxData.payLoad[auxIndex++]=myWord.ui8[0];
 
         myWord.f32 = (float)ui->spinBox_Td->value();
-        txData.payLoad[txData.index++]=myWord.ui8[3];
-        txData.payLoad[txData.index++]=myWord.ui8[2];
-        txData.payLoad[txData.index++]=myWord.ui8[1];
-        txData.payLoad[txData.index++]=myWord.ui8[0];
+        USBtxData.payLoad[auxIndex++]=myWord.ui8[3];
+        USBtxData.payLoad[auxIndex++]=myWord.ui8[2];
+        USBtxData.payLoad[auxIndex++]=myWord.ui8[1];
+        USBtxData.payLoad[auxIndex++]=myWord.ui8[0];
 
         myWord.f32 = (float)ui->spinBox_Ti->value();
-        txData.payLoad[txData.index++]=myWord.ui8[3];
-        txData.payLoad[txData.index++]=myWord.ui8[2];
-        txData.payLoad[txData.index++]=myWord.ui8[1];
-        txData.payLoad[txData.index++]=myWord.ui8[0];
+        USBtxData.payLoad[auxIndex++]=myWord.ui8[3];
+        USBtxData.payLoad[auxIndex++]=myWord.ui8[2];
+        USBtxData.payLoad[auxIndex++]=myWord.ui8[1];
+        USBtxData.payLoad[auxIndex++]=myWord.ui8[0];
 
-        txData.payLoad[NBYTES]=0x0E;
+        USBtxData.payLoad[NBYTES]=0x0E;
         break;
     default:
         break;
     }
 
-    txData.cheksum=0;
+    USBtxData.cheksum=0;
 
     //recuenta los bytes y carga el checksum
-    for(int a=0 ;a<txData.index;a++)
-        txData.cheksum^=txData.payLoad[a];
-    txData.payLoad[txData.index]=txData.cheksum;
+    for(int a=0 ;a<auxIndex;a++)
+        USBtxData.cheksum^=USBtxData.payLoad[a];
+    USBtxData.payLoad[auxIndex]=USBtxData.cheksum;
     if(mySerial->isWritable()){
-        mySerial->write((char *)txData.payLoad,txData.payLoad[NBYTES]+6);
-
+        ui->textUSB->append("Sent: ");
+        ui->textUSB->insertPlainText(text);
+        mySerial->write((char *)USBtxData.payLoad,USBtxData.payLoad[NBYTES]+6);
+        USBtxData.indexw += auxIndex;
+        USBtxData.indexw &= 255;
     }
 
 
@@ -380,23 +443,16 @@ void MainWindow::on_messageBox_currentIndexChanged(int index)
         estadoComandos = SETPID;
     break;
     default:
-        ui->textUSB->setText("Mensaje Incorrecto");
         break;
     }
 }
 
-void MainWindow::onRXUDP(){
-    while (myUDP->hasPendingDatagrams()) {
-        QNetworkDatagram UDPdata = myUDP->receiveDatagram();
-        ui->textWIFI->append("UDP RECEIVED:");
-        ui->textWIFI->append(UDPdata.data().data());
-    }
-}
+
 
 void MainWindow::on_UDP_Conectar_clicked()
 {
     ///Conexion de eventos WiFi
-    if(myUDP->bind(QHostAddress("192.168.100.39"), 30010,QUdpSocket::ShareAddress | QUdpSocket::ReuseAddressHint)){
+    if(myUDP->bind(QHostAddress("192.168.100.39"), 30010,QUdpSocket::ShareAddress | QUdpSocket::ReuseAddressHint)){ //,QUdpSocket::ShareAddress | QUdpSocket::ReuseAddressHint
         connect(myUDP, &QUdpSocket::readyRead ,this, &MainWindow::onRXUDP);
         ui->textWIFI->append("UDP CONNECTED");
     }else{
@@ -407,19 +463,20 @@ void MainWindow::on_UDP_Conectar_clicked()
 
 void MainWindow::on_pushButton_sendWifi_clicked()
 {
-    char buf[10];
+
+    uint8_t bytesSent;
+    char buf[9];
     buf[0] = 'U';
     buf[1] = 'N';
     buf[2] = 'E';
     buf[3] = 'R';
-    buf[4] = 0x32;
+    buf[4] = 0x02;
     buf[5] = ':';
     buf[6] = 0xF0;
     buf[7] = 0xC4;
 
-    myUDP->writeDatagram(buf,sizeof(buf),QHostAddress("192.168.100.39"),30010);
-    //ui->textWIFI->append();
-    //myUDP->write(QByteArray(buf));
+    bytesSent = myUDP->writeDatagram(buf,sizeof(buf),targetIP,targetPort);
+    ui->testLabel->setNum(bytesSent);
 
 }
 

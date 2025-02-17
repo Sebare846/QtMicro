@@ -25,28 +25,38 @@ public:
     MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
 
+    typedef struct{
+        uint8_t comID;
+        uint8_t buffer[256];
+        uint8_t timeOut;
+        uint8_t cheksum;
+        uint8_t payLoad[50];
+        uint8_t indexP;
+        uint8_t nBytes;
+        uint8_t indexr;
+        uint8_t indexw;
+    }_sDatos ;
+
     void openSerialPort(SettingsDialog *mySettings, QSerialPort *mySerial);
 
     void closeSerialPort(QSerialPort *mySerial);
 
     void myTimerOnTime();
 
-    void dataRecived(QSerialPort *mySerial);
+    void dataRecived(_sDatos data);
 
-    void decodeData();
+    void decodeData(_sDatos data);
 
     void sendData(QSerialPort *mySerial);
 
     void onRXUDP();
 
+    void onRXUSB(QSerialPort *mySerial);
+
 private slots:
     void on_pushButtonSend_clicked();
 
     void on_messageBox_currentIndexChanged(int index);
-
-    void on_pushButtonSend_2_clicked();
-
-    void on_USB_Config_clicked();
 
     void on_UDP_Conectar_clicked();
 
@@ -54,6 +64,9 @@ private slots:
 
 private:
     Ui::MainWindow *ui;
+
+    #define USBID 0
+    #define UDPID 1
 
     QSerialPort *mySerialUSB, *mySerialUSART;
     QTimer *myTimer;
@@ -98,15 +111,7 @@ private:
 
     _eIndex cmdIndex;
 
-    typedef struct{
-        uint8_t timeOut;
-        uint8_t cheksum;
-        uint8_t payLoad[50];
-        uint8_t nBytes;
-        uint8_t index;
-    }_sDatos ;
-
-    _sDatos rxData, txData;
+    _sDatos USBrxData, USBtxData, UDPrxData, UDPtxData;
 
     typedef union {
         float f32;
@@ -125,6 +130,9 @@ private:
 
     float error, vBase = 7000, velD, velI, deltaV;
 
+    QHostAddress targetIP;
+
+    uint16_t targetPort;
 
 };
 #endif // MAINWINDOW_H
