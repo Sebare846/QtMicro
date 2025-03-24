@@ -191,12 +191,16 @@ void MainWindow::onRXUDP(){
 void MainWindow::dataRecived(_sDatos data)
 {
     uint8_t bytes = data.indexw - data.indexr;
+    char auxBuffer[bytes];
     for(int i=0;i<bytes; i++){
         switch (estadoProtocolo) {
         case START:
             if (data.buffer[i]=='U'){
                 estadoProtocolo=HEADER_1;
                 data.cheksum=0;
+            }
+            if (data.buffer[i]=='+'){
+                estadoProtocolo=DBGSTR;
             }
             break;
         case HEADER_1:
@@ -252,6 +256,14 @@ void MainWindow::dataRecived(_sDatos data)
                 }
             }
             break;
+        case DBGSTR:
+            auxBuffer[i] = data.buffer[i];
+            if(auxBuffer[i] == '\n'){
+                ui->textUSB->insertPlainText(auxBuffer);
+                USBrxData.indexr = USBrxData.indexw;
+                estadoProtocolo=START;
+            }
+            break;
         default:
             estadoProtocolo=START;
             break;
@@ -268,7 +280,11 @@ void MainWindow::decodeData(_sDatos data)
     case ALIVE:
         text = "ALIVE";
         break;
+    case UDPCON:
+        text = "ACK UDP";
+        break;
     case IR_SENSOR:
+        text = "SENSOR INFO";
         myWord.ui8[0] = data.payLoad[2];
         myWord.ui8[1] = data.payLoad[3];
         ui->lcdIR0->display(myWord.ui16[0]);
@@ -293,6 +309,90 @@ void MainWindow::decodeData(_sDatos data)
         myWord.ui8[0] = data.payLoad[16];
         myWord.ui8[1] = data.payLoad[17];
         ui->lcdIR7->display(myWord.ui16[0]);
+        mpuAXg_last = mpuAXg;
+        mpuAYg_last = mpuAYg;
+        mpuAZg_last = mpuAZg;
+
+        myWord.ui8[0] = data.payLoad[2];
+        myWord.ui8[1] = data.payLoad[3];
+        mpuAccX = myWord.i16[0];
+        mpuAXg = mpuAccX / 16384.0;
+        // if(abs(mpuAXg) < 0.025)
+        //     mpuAXg = 0;
+        ui->lcdAx->display(mpuAXg);
+        myWord.ui8[0] = data.payLoad[4];
+        myWord.ui8[1] = data.payLoad[5];
+        mpuAccY = myWord.i16[0];
+        mpuAYg = mpuAccY / 16384.0;
+        // if(abs(mpuAYg) < 0.025)
+        //     mpuAYg = 0;
+        ui->lcdAy->display(mpuAYg);
+        myWord.ui8[0] = data.payLoad[6];
+        myWord.ui8[1] = data.payLoad[7];
+        mpuAccZ = myWord.i16[0];
+        mpuAZg = mpuAccZ / 16384.0;
+        // if(abs(mpuAZg) < 0.025)
+        //     mpuAZg = 0;
+        ui->lcdAz->display(mpuAZg);
+
+        velX = (mpuAXg-mpuAXg_last)*9.8/0.5;
+        velY = (mpuAYg-mpuAYg_last)*9.8/0.5;
+        velZ = (mpuAZg-mpuAZg_last)*9.8/0.5;
+
+        ui->lcdVx->display(velX);
+        ui->lcdVy->display(velY);
+        ui->lcdVz->display(velZ);
+
+        break;
+    case MPUDATA:
+        mpuAXg_last = mpuAXg;
+        mpuAYg_last = mpuAYg;
+        mpuAZg_last = mpuAZg;
+
+        myWord.ui8[0] = data.payLoad[2];
+        myWord.ui8[1] = data.payLoad[3];
+        mpuAccX = myWord.i16[0];
+        mpuAXg = mpuAccX / 16384.0;
+        // if(abs(mpuAXg) < 0.2)
+        //     mpuAXg = 0;
+        ui->lcdAx->display(mpuAXg);
+        myWord.ui8[0] = data.payLoad[4];
+        myWord.ui8[1] = data.payLoad[5];
+        mpuAccY = myWord.i16[0];
+        mpuAYg = mpuAccY / 16384.0;
+        // if(abs(mpuAYg) < 0.2)
+        //     mpuAYg = 0;
+        ui->lcdAy->display(mpuAYg);
+        myWord.ui8[0] = data.payLoad[6];
+        myWord.ui8[1] = data.payLoad[7];
+        mpuAccZ = myWord.i16[0];
+        mpuAZg = mpuAccZ / 16384.0;
+        // if(abs(mpuAZg) < 0.2)
+        //     mpuAZg = 0;
+        ui->lcdAz->display(mpuAZg);
+
+        velX = (mpuAXg-mpuAXg_last)*9.8/0.5;
+        velY = (mpuAYg-mpuAYg_last)*9.8/0.5;
+        velZ = (mpuAZg-mpuAZg_last)*9.8/0.5;
+
+        ui->lcdVx->display(velX);
+        ui->lcdVy->display(velY);
+        ui->lcdVz->display(velZ);
+        // myWord.ui8[0] = data.payLoad[8];
+        // myWord.ui8[1] = data.payLoad[9];
+        // mpuGyroX = myWord.i16[0];
+        // mpuGX = mpuGyroX / 131.0;  //
+        // ui->lcdVx->display(mpuGX);
+        // myWord.ui8[0] = data.payLoad[10];
+        // myWord.ui8[1] = data.payLoad[11];
+        // mpuGyroY = myWord.i16[0];
+        // mpuGY = mpuGyroY / 131.0;
+        // ui->lcdVy->display(mpuGY);
+        // myWord.ui8[0] = data.payLoad[12];
+        // myWord.ui8[1] = data.payLoad[13];
+        // mpuGyroZ = myWord.i16[0];
+        // mpuGZ = mpuGyroZ / 131.0;
+        // ui->lcdVz->display(mpuGZ);
         break;
     case ESPMSG:
         text = "TRANSMISION INICIADA";
@@ -358,16 +458,16 @@ void MainWindow::sendData(_sDatos data)
         data.buffer[auxIndex++]=ALIVE;
         data.buffer[NBYTES]=0x02;
         break;
+    case UDPCON:
+        text = "ACK UDP";
+        data.buffer[auxIndex++] = UDPCON;
+        data.buffer[NBYTES]=0x02;
+        break;
     case ESPSETUP:
         text = "SET ESP";
         data.buffer[auxIndex++]=ESPSETUP;
         data.buffer[auxIndex++]=ui->messageBox_Redes->currentIndex();
         data.buffer[NBYTES]=0x03;
-    break;
-    case ESPMSG:
-        text = "ESP MESSAGE";
-        data.buffer[auxIndex++]=ESPMSG;
-        data.buffer[NBYTES]=0x02;
     break;
     case SETPID:
         text = "SET PID";
@@ -473,6 +573,8 @@ void MainWindow::on_UDP_Conectar_clicked()
     if(myUDP->bind(QHostAddress("192.168.100.39"), 30010,QUdpSocket::ShareAddress | QUdpSocket::ReuseAddressHint)){ //,QUdpSocket::ShareAddress | QUdpSocket::ReuseAddressHint
         connect(myUDP, &QUdpSocket::readyRead ,this, &MainWindow::onRXUDP);
         ui->textWIFI->append("UDP CONNECTED");
+        estadoComandos = UDPCON;
+        sendData(USBtxData);
     }else{
         ui->textWIFI->append("CONECTION ERROR");
     }

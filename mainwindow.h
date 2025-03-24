@@ -80,7 +80,8 @@ private:
         HEADER_3,
         NBYTES,
         TOKEN,
-        PAYLOAD
+        PAYLOAD,
+        DBGSTR
     }_eProtocolo;
 
     _eProtocolo estadoProtocolo;
@@ -88,12 +89,13 @@ private:
     typedef enum{
         ACK=0x0D,
         ALIVE=0xF0,
-        TOESP=0xF1,
+        UDPCON=0xF1,
         ESPMSG=0xF2,
         IR_SENSOR=0xF3,
         ESPSETUP=0XF4,
         SETPID = 0xF5,
         DATAPID = 0xF6,
+        MPUDATA = 0xF7,
         OTHERS
     }_eID;
 
@@ -121,7 +123,6 @@ private:
         unsigned short ui16[2];
         short i16[2];
         uint8_t ui8[4];
-
         char chr[4];
         unsigned char uchr[4];
     }_udat;
@@ -129,6 +130,8 @@ private:
     _udat myWord;
 
     float error, vBase = 7000, velD, velI, deltaV;
+    int16_t mpuAccX, mpuAccY, mpuAccZ, mpuGyroX, mpuGyroY, mpuGyroZ;
+    float mpuAXg, mpuAYg, mpuAZg, mpuAXg_last, mpuAYg_last, mpuAZg_last, mpuGX, mpuGY, mpuGZ, velX, velY, velZ;
 
     QHostAddress targetIP;
 
