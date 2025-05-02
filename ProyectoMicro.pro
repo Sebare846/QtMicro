@@ -12,10 +12,12 @@ CONFIG += c++17
 SOURCES += \
     main.cpp \
     mainwindow.cpp \
+    qpaintbox.cpp \
     settingsdialog.cpp
 
 HEADERS += \
     mainwindow.h \
+    qpaintbox.h \
     settingsdialog.h
 
 FORMS += \
